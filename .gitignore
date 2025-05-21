@@ -1,0 +1,5 @@
+.env
+/__pycache__/
+/chrome-user-data/
+/node_modules/
+pythons/
