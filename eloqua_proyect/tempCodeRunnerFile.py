@@ -1,1 +1,0 @@
-get_or_create_monthly_folder
