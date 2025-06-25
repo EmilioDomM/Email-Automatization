@@ -297,12 +297,22 @@ def load_email_template():
 
 def generate_email_html(products):
     html = """
+    <style>
+    @media only screen and (max-width: 600px) {
+        .product-column {
+            display: inline-block !important;
+            width: 50% !important;
+            max-width: 50% !important;
+            box-sizing: border-box;
+        }
+    }
+    </style>
     <!--[if mso]>
     <style type="text/css">
         .fallback-table {width: 100% !important;}
     </style>
     <![endif]-->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" style="border-collapse: collapse; margin: 0 auto;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="border-collapse: collapse; width:100%; max-width:600px; margin:0 auto;">
     """
 
     total = len(products)
@@ -332,7 +342,7 @@ def generate_email_html(products):
             button_border = "#FFA500" if on_sale else "#6D247A"
 
             html += f"""
-            <td align="center" valign="top" style="padding: 10px; vertical-align: top;">
+            <td class="product-column" align="center" valign="top" style="padding: 10px; vertical-align: top; width: 290px; max-width: 33.33%;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; background-color: white; height: 400px; table-layout: fixed;">
                     <tr>
                         <td align="center" style="height: 180px;">
@@ -377,6 +387,7 @@ def generate_email_html(products):
 
     html += "</table>"
     return html
+
 
 def inject_random_banner(html_template):
     # Reemplaza la URL original de la imagen por un GIF aleatorio
