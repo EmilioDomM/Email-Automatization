@@ -1,5 +1,5 @@
 import os, requests, threading, base64, re, json, random
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
@@ -28,7 +28,7 @@ hospital_to_unidad = {
     "H. Sur": {"unidad_id": "567", "url_id": "53120233094"},
     "H. Vidriera": {"unidad_id": "568", "url_id": "53120233095"},
     "H. Reynosa": {"unidad_id": "569", "url_id": "53120233096"},
-    "H. del Parque": {"unidad_id": "570", "url_id": "53120233097"},
+    "H. Del Parque": {"unidad_id": "570", "url_id": "53120233097"},
     "H. Saltillo": {"unidad_id": "571", "url_id": "53120233098"},
     "H. Betania": {"unidad_id": "572", "url_id": "53120233099"},
     "H. UPAEP": {"unidad_id": "573", "url_id": "53120233100"},
@@ -49,7 +49,7 @@ hospital_to_siglas = {
     "H. Sur": "cmsur",
     "H. Vidriera": "cmv",
     "H. Reynosa": "cmr",
-    "H. del Parque": "cmdp",
+    "H. Del Parque": "cmdp",
     "H. Saltillo": "cms",
     "H. Betania": "cmb",
     "H. UPAEP": "cmupaep",
@@ -103,7 +103,11 @@ def get_database_entries():
         next_cursor = data.get("next_cursor")
 
     print(f"✅ Retrieved {len(entries)} entries from Notion")
+    if entries:
+        print("🔍 Propiedades del primer resultado:")
+        print(json.dumps(entries[0]["properties"], indent=2, ensure_ascii=False))
     return entries
+
 
 def get_product_titles_and_units(product_relations):
     titles = []
@@ -155,35 +159,52 @@ def build_hospital_product_map():
     hospital_product_map = {}
 
     for entry in entries:
+        print("🔸 Revisando entrada...")
+
         created = entry.get("created_time")
         if not created:
+            print("⛔ Sin fecha de creación")
             continue
 
         created_date = datetime.fromisoformat(created)
-        if created_date.month != now.month or created_date.year != now.year:
-            continue
-
+        
         props = entry.get("properties", {})
         unidad_servicio = props.get("Unidad de servicio", {}).get("select", {}).get("name")
         productos = props.get("Productos", {}).get("relation", [])
+
+        print(f"✅ Unidad de servicio: {unidad_servicio}")
+        print(f"🔗 Productos relacionados encontrados: {len(productos)}")
+
         if not unidad_servicio or not productos:
+            print("⛔ Faltan datos clave (unidad o productos)")
             continue
 
         titles, unidades = get_product_titles_and_units(productos)
+        print(f"📦 Títulos obtenidos: {titles}")
+        print(f"🏥 Unidades asociadas: {unidades}")
+
         for title, unidad_producto in zip(titles, unidades):
+            print(f"→ Comparando '{unidad_producto}' con '{unidad_servicio}'")
             if unidad_producto == unidad_servicio:
+                cleaned_title = re.sub(r"^[^-]*-\s*", "", title)
                 hospital_data = hospital_to_unidad.get(unidad_servicio)
+
                 if hospital_data:
                     unidad_id = hospital_data["unidad_id"]
-                    hospital_product_map.setdefault(unidad_id, []).append(title)
+                    hospital_product_map.setdefault(unidad_id, []).append(cleaned_title)
+                    print(f"✅ Agregado: {cleaned_title} a {unidad_servicio} ({unidad_id})")
+                else:
+                    print(f"⚠️ Unidad de servicio '{unidad_servicio}' no encontrada en el diccionario")
 
-    print("✅ Hospital-Product Map built:")
+    print("✅ Mapa hospital-producto construido:")
     print(json.dumps(hospital_product_map, indent=2, ensure_ascii=False))
     return hospital_product_map
 
 
+
 def clean_product_name(name, hospital_name=None):
-    cleaned = re.sub(r"\s*\(.*?\)\s*", " ", name)
+    cleaned = re.sub(r"^[^-]*-\s*", "", name)
+    cleaned = re.sub(r"\s*\(.*?\)\s*", " ", cleaned)
     cleaned = re.sub(r"CHRISTUS MUGUERZA", "", cleaned, flags=re.IGNORECASE)
 
     if hospital_name:
@@ -196,6 +217,7 @@ def clean_product_name(name, hospital_name=None):
             cleaned = re.sub(re.escape(alias), "", cleaned, flags=re.IGNORECASE)
 
     return re.sub(r"\s{2,}", " ", cleaned).strip()
+
 
 BANNER_GIFS = [
     "http://img04.en25.com/EloquaImages/clients/Christus/%7B6d051d00-67ac-40cc-8952-2b0639faa692%7D_gif_muguerza_1.gif",
@@ -322,7 +344,6 @@ def generate_email_html(products):
         chunk = products[i:i + per_row]
         num_items = len(chunk)
 
-        # Calculate spacing for center alignment
         spacer_td = ''
         if num_items == 1:
             spacer_td = '<td width="33%"></td>'
@@ -335,11 +356,10 @@ def generate_email_html(products):
             html += spacer_td
 
         for product in chunk:
-            # Botón dinámico dependiendo de si está en oferta
             on_sale = product.get("on_sale", False)
             button_text = "En Oferta" if on_sale else "Ver producto"
-            button_color = "#FFA500" if on_sale else "#6D247A"
-            button_border = "#FFA500" if on_sale else "#6D247A"
+            button_color = "#EC8F4F" if on_sale else "#6D247A"
+            button_border = "#EC8F4F" if on_sale else "#6D247A"
 
             html += f"""
             <td class="product-column" align="center" valign="top" style="padding: 10px; vertical-align: top; width: 290px; max-width: 33.33%;">
@@ -350,19 +370,19 @@ def generate_email_html(products):
                         </td>
                     </tr>
                     <tr>
-                        <td align="center" style="font-family: Arial, sans-serif; font-size: 20px; line-height: 24px; height: 80px; display: table-cell; vertical-align: middle;">
-                            <div style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; max-height: 72px; line-height: 24px; margin: 0 auto;">
+                        <td align="center" style="font-family: 'Satoshi', Arial, sans-serif; font-size: 22px; line-height: 14px; color: #636A6B; height: 80px; vertical-align: middle;">
+                            <div style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; max-height: 100px; line-height: 22px; margin: 0 auto;">
                                 {product['name']}
                             </div>
                         </td>
                     </tr>
                     <tr>
-                        <td align="center" style="font-family: Arial, sans-serif; font-size: 28px; font-weight: bold; color: #6D247A; height: 50px; display: table-cell; vertical-align: bottom;">
+                        <td align="center" style="font-family: 'Satoshi', Arial, sans-serif; font-size: 14px; font-weight: bold; color: #6D247A; height: 50px; vertical-align: bottom;">
                             ${product['price']}
                         </td>
                     </tr>
                     <tr>
-                        <td align="center" style="padding: 10px 0; display: table-cell; vertical-align: top;">
+                        <td align="center" style="padding: 10px 0; vertical-align: top;">
                             <a href="{product['url']}" style="
                                 display: inline-block;
                                 padding: 10px 26px;
@@ -372,7 +392,7 @@ def generate_email_html(products):
                                 border-radius: 24px;
                                 color: white;
                                 background-color: {button_color};
-                                font-family: Arial, sans-serif;
+                                font-family: 'Satoshi', Arial, sans-serif;
                             ">{button_text}</a>
                         </td>
                     </tr>
@@ -387,6 +407,35 @@ def generate_email_html(products):
 
     html += "</table>"
     return html
+
+
+def get_end_of_month_date():
+    today = datetime.today()
+    next_month = today.replace(day=28) + timedelta(days=4)  # Te lleva al próximo mes
+    end_of_month = next_month - timedelta(days=next_month.day)
+    return end_of_month.strftime("%d de %B de %Y")  # Ej: '30 de junio de 2025'
+
+def generate_legal_disclaimer():
+    end_date = get_end_of_month_date()
+    return f"""
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="max-width:600px; margin:20px auto 0;">
+      <tr>
+        <td align="center" style="padding: 10px 20px;">
+          <p style="
+            margin: 0;
+            font-family: 'Satoshi', Arial, sans-serif;
+            font-size: 11px;
+            color: #636A6B;
+            line-height: 1.5;
+          ">
+            Aplican restricciones. Precios exclusivos en tienda en línea. Promociones y descuentos sujetos a cambios sin previo aviso.
+            Una vez realizado el pago, comunicarse a la sucursal para mayor información. Algunos productos requieren cita previa.<br>
+            Vigencia al {end_date}.
+          </p>
+        </td>
+      </tr>
+    </table>
+    """
 
 
 def inject_random_banner(html_template):
@@ -404,6 +453,9 @@ def send_email_to_eloqua(hospital_name, unidad_id, products):
     template = load_email_template()
     template = inject_random_banner(template)
     full_html = template.replace("<!-- PRODUCT_GRID_HERE -->", product_html)
+    
+    legal_html = generate_legal_disclaimer()
+    full_html = full_html.replace("<!-- LEGAL_DISCLAIMER -->", legal_html)
 
     payload = {
         "name": email_name,
